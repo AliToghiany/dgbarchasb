@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#2F6F5E" />
+  <title>مدیریت سفارش، انبار برچسب و فاکتور پرو</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- قفل ورود با رمز عبور (در صورت فعال بودن) -->
+  <div id="login-overlay" class="login-overlay">
+    <div class="card login-card">
+      <h2 style="text-align:center;margin:0 0 6px;">🔐 ورود به نرم‌افزار</h2>
+      <p style="text-align:center;font-size:12px;color:var(--muted);margin:0 0 16px;">رمز پیش‌فرض مدیر: admin / 1234</p>
+      <div class="field-group">
+        <label>نام کاربری</label>
+        <input type="text" id="login-user" value="admin" />
+      </div>
+      <div class="field-group">
+        <label>رمز عبور</label>
+        <input type="password" id="login-pass" placeholder="رمز عبور را وارد کنید" />
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">ورود به برنامه</button>
+    </div>
+  </div>
+
+  <!-- منوی کشویی (Drawer) -->
+  <div id="drawer-backdrop" class="drawer-backdrop" onclick="toggleDrawer(false)"></div>
+  <aside id="drawer" class="drawer">
+    <div class="drawer-brand" id="drawer-brand">استودیو برچسب و چاپ</div>
+    <div class="drawer-sub" id="drawer-ver">نسخه 3.2 Android • مدیر</div>
+    <button class="drawer-item" data-page="dashboard" onclick="goPage('dashboard')">📊 داشبورد و هشدارها</button>
+    <button class="drawer-item" data-page="orders" onclick="goPage('orders')">📦 مدیریت سفارش‌ها</button>
+    <button class="drawer-item" data-page="inventory" onclick="goPage('inventory')">🏷️ کالاها و انبار برچسب</button>
+    <button class="drawer-item" data-page="invoices" onclick="goPage('invoices')">🧾 استودیو فاکتور</button>
+    <button class="drawer-item" data-page="finance" onclick="goPage('finance')">💳 مالی، دریافت/پرداخت و چک</button>
+    <button class="drawer-item" data-page="customers" onclick="goPage('customers')">👥 اشخاص، مشتریان و بازاریاب</button>
+    <button class="drawer-item" data-page="reports" onclick="goPage('reports')">📈 گزارشات، سودآوری و مالیات</button>
+    <button class="drawer-item" data-page="settings" onclick="goPage('settings')">⚙️ تنظیمات، امنیت و بکاپ</button>
+  </aside>
+
+  <!-- نوار بالای صفحه -->
+  <header class="topbar">
+    <button class="icon-btn" onclick="toggleDrawer(true)" title="منو">☰</button>
+    <div class="topbar-title">
+      <h1 id="top-title">داشبورد مدیریتی</h1>
+      <small id="top-sub">امروز ...</small>
+    </div>
+    <button class="btn btn-sm btn-secondary" id="btn-cloud-pill" onclick="onCloudPillTap()" style="min-height:36px;font-size:11px;padding:4px 9px;">⚪ محلی</button>
+    <button class="icon-btn" onclick="openGlobalSearch()" title="جستجوی سراسری">🔍</button>
+    <button class="icon-btn" id="btn-dark-toggle" onclick="toggleDarkMode()" title="حالت تاریک">🌙</button>
+  </header>
+
+  <!-- ==================== صفحه ۱: داشبورد ==================== -->
+  <section id="page-dashboard" class="page active">
+    <div id="dash-kpis" class="kpi-grid"></div>
+    <div class="card">
+      <div class="card-title">
+        <span>🔔 اعلان‌ها و هشدارهای فوری</span>
+        <div class="row-nowrap">
+          <button class="btn btn-sm btn-secondary" onclick="goPage('inventory')">انبار</button>
+          <button class="btn btn-sm btn-secondary" onclick="goPage('finance')">چک‌ها</button>
+        </div>
+      </div>
+      <div id="dash-alerts"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span>📊 فروش به تفکیک پیام‌رسان</span></div>
+      <div id="dash-messengers"></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span>⚙️ قیف وضعیت تولید و چاپ</span></div>
+      <div id="dash-pipeline"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <span>⏳ سفارش‌های باز / نیازمند پیگیری</span>
+        <button class="btn btn-sm btn-secondary" onclick="goPage('orders')">همه سفارش‌ها</button>
+      </div>
+      <div id="dash-urgent"></div>
+    </div>
+  </section>
+
+  <!-- ==================== صفحه ۲: مدیریت سفارش‌ها ==================== -->
+  <section id="page-orders" class="page">
+    <div class="card" style="padding:10px;">
+      <input type="text" id="ord-search" placeholder="🔍 جستجو در نام مشتری، تلفن، سایز، کد سفارش یا رهگیری..." oninput="renderOrders()" />
+      <div class="grid-2" style="margin-top:8px;">
+        <select id="ord-kind-filter" onchange="renderOrders()">
+          <option value="همه">همه انواع سفارش</option>
+          <option value="چاپ سفارشی">چاپ سفارشی</option>
+          <option value="سفارش آماده (انبار)">سفارش آماده (انبار)</option>
+          <option value="ترکیبی (انبار + چاپ)">ترکیبی (انبار + چاپ)</option>
+        </select>
+        <select id="ord-msg-filter" onchange="renderOrders()">
+          <option value="همه">همه کانال‌ها</option>
+        </select>
+      </div>
+      <div id="ord-pills" class="pills-scroll" style="margin-top:6px;"></div>
+    </div>
+    <div id="ord-footer-summary" class="footer-summary"></div>
+    <div id="orders-list"></div>
+  </section>
+
+  <!-- ==================== صفحه ۳: کالاها و انبارداری تخصصی ==================== -->
+  <section id="page-inventory" class="page">
+    <div class="row-flex" style="margin-bottom:10px;">
+      <button class="btn btn-primary flex-1" onclick="openProductModal()">+ کالای جدید</button>
+      <button class="btn btn-secondary" onclick="openSlittingModal()">✂️ برش رول مادر</button>
+      <button class="btn btn-warn" onclick="openBulkPriceModal()">📈 آپدیت قیمت</button>
+    </div>
+    <div class="card" style="padding:10px;">
+      <div class="row-nowrap">
+        <input type="text" id="inv-search" class="flex-1" placeholder="🔍 نام کالا، SKU، بارکد یا بچ..." oninput="renderInventory()" />
+        <button class="icon-btn" onclick="scanBarcodeInto('inv-search', renderInventory)" title="اسکن بارکد با دوربین">📷</button>
+      </div>
+      <div class="grid-2" style="margin-top:8px;">
+        <input type="text" id="inv-size" placeholder="فیلتر سایز (مثلاً 40×60)" oninput="renderInventory()" />
+        <select id="inv-type" onchange="renderInventory()"></select>
+      </div>
+      <div class="grid-2" style="margin-top:8px;">
+        <select id="inv-wh" onchange="renderInventory()"></select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:0 6px;">
+          <input type="checkbox" id="inv-low-only" onchange="renderInventory()" style="width:20px;height:20px;" />
+          فقط کم‌موجودی‌ها
+        </label>
+      </div>
+    </div>
+    <div id="inv-summary" class="footer-summary"></div>
+    <div id="inventory-list"></div>
+  </section>
+
+  <!-- ==================== صفحه ۴: استودیو فاکتور ==================== -->
+  <section id="page-invoices" class="page">
+    <div class="row-flex" style="margin-bottom:10px;">
+      <button class="btn btn-primary flex-1" onclick="saveAndPrintInvoice()">🖨️ ثبت و چاپ / PDF</button>
+      <button class="btn btn-secondary" onclick="saveInvoice()">💾 ذخیره</button>
+      <button class="btn btn-secondary" onclick="shareInvoiceText()">📤 اشتراک</button>
+    </div>
+    <div class="row-flex" style="margin-bottom:10px;">
+      <button class="btn btn-sm btn-secondary flex-1" onclick="resetInvoiceForm()">+ فاکتور جدید</button>
+      <button class="btn btn-sm btn-secondary flex-1" onclick="cloneInvoice()">📋 کپی فاکتور</button>
+      <button class="btn btn-sm btn-success flex-1" onclick="syncInvoiceStock()">📦 ثبت در انبار</button>
+    </div>
+
+    <div id="inv-live-banner" class="alert-box alert-success" style="display:none;"></div>
+    <div id="inv-warn-banner" class="alert-box alert-danger" style="display:none;"></div>
+
+    <!-- آرشیو فاکتورها -->
+    <div class="card">
+      <div class="field-group" style="margin-bottom:6px;">
+        <label>آرشیو فاکتورهای ذخیره‌شده</label>
+        <select id="inv-archive-select"></select>
+      </div>
+      <div class="row-flex">
+        <button class="btn btn-sm btn-secondary flex-1" onclick="loadArchiveInvoice()">باز کردن</button>
+        <button class="btn btn-sm btn-warn" onclick="cancelArchiveInvoice()">ابطال</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteArchiveInvoice()">حذف</button>
+      </div>
+    </div>
+
+    <!-- مشخصات سند و خریدار -->
+    <div class="card">
+      <div class="grid-2">
+        <div class="field-group">
+          <label>نوع سند</label>
+          <select id="inv-doc-type" onchange="onInvTypeChange()"></select>
+        </div>
+        <div class="field-group">
+          <label>شماره سند</label>
+          <input type="text" id="inv-num" oninput="onInvEdited()" />
+        </div>
+      </div>
+      <div class="field-group">
+        <label>انتخاب سریع مشتری قبلی</label>
+        <div class="row-nowrap">
+          <select id="inv-cust-pick" class="flex-1" onchange="onInvCustPicked()"></select>
+          <button class="btn btn-sm btn-secondary" onclick="openPartyModal('مشتری', 'invoice')">+ مشتری</button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field-group">
+          <label>نام خریدار / طرف حساب</label>
+          <input type="text" id="inv-cust-name" placeholder="نام مشتری..." oninput="onInvEdited()" />
+        </div>
+        <div class="field-group">
+          <label>تاریخ صدور</label>
+          <div class="row-nowrap">
+            <input type="text" id="inv-date" class="flex-1" oninput="onInvEdited()" />
+            <button class="btn btn-sm btn-secondary" onclick="setTodayField('inv-date', onInvEdited)">امروز</button>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field-group">
+          <label>تلفن</label>
+          <input type="tel" id="inv-cust-phone" oninput="onInvEdited()" />
+        </div>
+        <div class="field-group">
+          <label>کد اقتصادی / ملی</label>
+          <input type="text" id="inv-cust-econ" oninput="onInvEdited()" />
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field-group">
+          <label>نشانی</label>
+          <input type="text" id="inv-cust-addr" oninput="onInvEdited()" />
+        </div>
+        <div class="field-group">
+          <label>شرایط پرداخت</label>
+          <input type="text" id="inv-pay-terms" value="نقدی / کارت‌به‌کارت" oninput="onInvEdited()" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ردیف‌های فاکتور -->
+    <div class="card">
+      <div class="card-title">
+        <span>ردیف‌های فاکتور</span>
+        <div class="row-nowrap">
+          <button class="btn btn-sm btn-primary" onclick="openStockPicker('invoice')">📦 از انبار</button>
+          <button class="btn btn-sm btn-secondary" onclick="scanBarcodeForTarget('invoice')">📷 بارکد</button>
+        </div>
+      </div>
+      <div class="row-flex" style="margin-bottom:10px;">
+        <button class="btn btn-sm btn-success flex-1" onclick="addInvItem('چاپ متری','متر',1,0)">+ متری</button>
+        <button class="btn btn-sm btn-secondary flex-1" onclick="addInvItem('رول برچسب حرارتی','رول',1,0)">+ رول/عددی</button>
+        <button class="btn btn-sm btn-secondary flex-1" onclick="addInvItem('هزینه طراحی/کلیشه','خدمت',1,0)">+ طراحی</button>
+      </div>
+      <div id="inv-items-container"></div>
+    </div>
+
+    <!-- محاسبات و ظاهر فاکتور -->
+    <div class="card">
+      <div class="grid-2">
+        <div class="field-group"><label>تخفیف (تومان)</label><input type="text" inputmode="numeric" id="inv-discount" value="0" oninput="onInvEdited()" /></div>
+        <div class="field-group"><label>هزینه ارسال (تومان)</label><input type="text" inputmode="numeric" id="inv-shipping" value="0" oninput="onInvEdited()" /></div>
+        <div class="field-group"><label>ارزش افزوده (%)</label><input type="number" id="inv-tax" value="0" min="0" max="30" oninput="onInvEdited()" /></div>
+        <div class="field-group"><label>بیعانه / پرداختی</label><input type="text" inputmode="numeric" id="inv-paid" value="0" oninput="onInvEdited()" /></div>
+      </div>
+      <div class="row-flex" style="margin:8px 0;">
+        <span style="font-size:12px;font-weight:700;color:var(--muted);">رنگ قالب:</span>
+        <button class="color-dot" style="background:#2F6F5E" onclick="setInvAccent('#2F6F5E')"></button>
+        <button class="color-dot" style="background:#1E3A8A" onclick="setInvAccent('#1E3A8A')"></button>
+        <button class="color-dot" style="background:#18181B" onclick="setInvAccent('#18181B')"></button>
+        <button class="color-dot" style="background:#9F1239" onclick="setInvAccent('#9F1239')"></button>
+        <button class="color-dot" style="background:#92400E" onclick="setInvAccent('#92400E')"></button>
+      </div>
+      <div class="row-flex" style="font-size:12px;margin-bottom:8px;">
+        <label><input type="checkbox" id="inv-opt-logo" checked onchange="renderInvoicePreview()" /> لوگو</label>
+        <label><input type="checkbox" id="inv-opt-card" checked onchange="renderInvoicePreview()" /> شماره کارت</label>
+        <label><input type="checkbox" id="inv-opt-words" checked onchange="renderInvoicePreview()" /> مبلغ به حروف</label>
+        <label><input type="checkbox" id="inv-opt-sign" checked onchange="renderInvoicePreview()" /> مهر و امضا</label>
+      </div>
+      <div class="field-group">
+        <label>یادداشت پایین فاکتور</label>
+        <textarea id="inv-notes" oninput="onInvEdited()"></textarea>
+      </div>
+    </div>
+
+    <!-- پیش‌نمایش زنده A4 -->
+    <div class="card">
+      <div class="card-title"><span>👁️ پیش‌نمایش زنده فاکتور</span></div>
+      <div id="inv-preview" class="invoice-preview-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ==================== صفحه ۵: مالی و چک‌ها ==================== -->
+  <section id="page-finance" class="page">
+    <div class="row-flex" style="margin-bottom:10px;">
+      <button class="btn btn-primary flex-1" onclick="openPaymentModal()">+ ثبت دریافت / پرداخت</button>
+      <button class="btn btn-success flex-1" onclick="openCheckModal()">+ ثبت چک صیادی</button>
+    </div>
+    <div class="subtabs">
+      <button class="subtab active" data-fintab="payments" onclick="switchFinTab('payments')">💳 دریافت و پرداخت</button>
+      <button class="subtab" data-fintab="checks" onclick="switchFinTab('checks')">📝 چک‌های صیادی</button>
+      <button class="subtab" data-fintab="statement" onclick="switchFinTab('statement')">📒 معین اشخاص</button>
+    </div>
+    <div id="fin-tab-payments">
+      <div class="card" style="padding:10px;">
+        <div class="row-nowrap">
+          <input type="text" id="pay-search" class="flex-1" placeholder="جستجو در طرف حساب یا پیگیری..." oninput="renderFinance()" />
+          <select id="pay-dir-filter" style="width:120px;" onchange="renderFinance()">
+            <option value="همه">همه</option>
+            <option value="دریافت">دریافت</option>
+            <option value="پرداخت">پرداخت</option>
+          </select>
+        </div>
+      </div>
+      <div id="payments-list"></div>
+    </div>
+    <div id="fin-tab-checks" style="display:none;">
+      <div class="card" style="padding:10px;">
+        <input type="text" id="chk-search" placeholder="جستجو در صاحب چک، شماره چک، صیادی یا بانک..." oninput="renderFinance()" />
+        <div class="grid-2" style="margin-top:8px;">
+          <select id="chk-status-filter" onchange="renderFinance()">
+            <option value="همه">همه وضعیت‌ها</option>
+            <option value="در جریان">در جریان</option>
+            <option value="وصول شده">وصول شده</option>
+            <option value="برگشتی">برگشتی</option>
+            <option value="واگذار شده">واگذار شده</option>
+          </select>
+          <select id="chk-dir-filter" onchange="renderFinance()">
+            <option value="همه">دریافتی و پرداختی</option>
+            <option value="دریافتی">دریافتی</option>
+            <option value="پرداختی">پرداختی</option>
+          </select>
+        </div>
+      </div>
+      <div id="checks-list"></div>
+    </div>
+    <div id="fin-tab-statement" style="display:none;">
+      <div class="card">
+        <div class="row-nowrap">
+          <select id="stmt-party-select" class="flex-1" onchange="renderStatement()"></select>
+          <button class="btn btn-sm btn-primary" onclick="renderStatement()">نمایش</button>
+        </div>
+        <div id="stmt-balance" style="margin-top:10px;font-weight:800;color:var(--primary);"></div>
+      </div>
+      <div id="statement-list"></div>
+    </div>
+  </section>
+
+  <!-- ==================== صفحه ۶: اشخاص و مشتریان ==================== -->
+  <section id="page-customers" class="page">
+    <div class="row-flex" style="margin-bottom:10px;">
+      <button class="btn btn-primary flex-1" onclick="openPartyModal('مشتری')">+ تعریف شخص جدید</button>
+    </div>
+    <div class="subtabs">
+      <button class="subtab active" data-custtab="crm" onclick="switchCustTab('crm')">👥 باشگاه مشتریان</button>
+      <button class="subtab" data-custtab="parties" onclick="switchCustTab('parties')">📇 دفترچه اشخاص</button>
+    </div>
+    <div id="cust-tab-crm">
+      <div class="card" style="padding:10px;">
+        <input type="text" id="crm-search" placeholder="جستجوی نام مشتری یا تلفن..." oninput="renderCustomers()" />
+      </div>
+      <div id="crm-list"></div>
+    </div>
+    <div id="cust-tab-parties" style="display:none;">
+      <div class="card" style="padding:10px;">
+        <div class="row-nowrap">
+          <input type="text" id="party-search" class="flex-1" placeholder="جستجو در نام، تلفن، کد اقتصادی..." oninput="renderCustomers()" />
+          <select id="party-type-filter" style="width:130px;" onchange="renderCustomers()">
+            <option value="همه">همه نقش‌ها</option>
+            <option value="مشتری">مشتری</option>
+            <option value="تأمین‌کننده">تأمین‌کننده</option>
+            <option value="بازاریاب">بازاریاب</option>
+          </select>
+        </div>
+      </div>
+      <div id="parties-list"></div>
+    </div>
+  </section>
+
+  <!-- ==================== صفحه ۷: گزارشات و سودآوری ==================== -->
+  <section id="page-reports" class="page">
+    <div class="card" style="padding:10px;">
+      <div class="grid-2">
+        <input type="text" id="rep-from" placeholder="از تاریخ (مثلاً 1405/01/01)" />
+        <input type="text" id="rep-to" placeholder="تا تاریخ (مثلاً 1405/12/29)" />
+      </div>
+      <div class="row-flex" style="margin-top:8px;">
+        <button class="btn btn-primary flex-1" onclick="renderReports()">اعمال بازه</button>
+        <button class="btn btn-secondary" onclick="exportActiveReportCsv()">📥 خروجی اکسل</button>
+      </div>
+    </div>
+    <div id="rep-pl-kpis" class="kpi-grid"></div>
+    <div class="subtabs">
+      <button class="subtab active" data-reptab="top" onclick="switchRepTab('top')">🏆 پرفروش‌ها</button>
+      <button class="subtab" data-reptab="low" onclick="switchRepTab('low')">⚠️ کم‌موجودی</button>
+      <button class="subtab" data-reptab="dead" onclick="switchRepTab('dead')">🧊 راکد</button>
+      <button class="subtab" data-reptab="vat" onclick="switchRepTab('vat')">🏛️ ارزش افزوده</button>
+      <button class="subtab" data-reptab="mkt" onclick="switchRepTab('mkt')">🤝 بازاریاب‌ها</button>
+    </div>
+    <div id="rep-body"></div>
+  </section>
+
+  <!-- ==================== صفحه ۸: تنظیمات، امنیت و پشتیبان‌گیری ==================== -->
+  <section id="page-settings" class="page">
+    <div class="subtabs">
+      <button class="subtab active" data-settab="brand" onclick="switchSetTab('brand')">🏢 برند و انبار</button>
+      <button class="subtab" data-settab="security" onclick="switchSetTab('security')">🔐 امنیت و کاربران</button>
+      <button class="subtab" data-settab="backup" onclick="switchSetTab('backup')">💾 بکاپ و لاگ</button>
+      <button class="subtab" data-settab="cloud" onclick="switchSetTab('cloud')">☁️ همگام‌سازی ابری</button>
+    </div>
+
+    <div id="set-tab-brand">
+      <div class="card">
+        <div class="field-group"><label>نام برند / فروشگاه</label><input type="text" id="set-brand" /></div>
+        <div class="field-group"><label>شعار زیرعنوان</label><input type="text" id="set-slogan" /></div>
+        <div class="grid-2">
+          <div class="field-group"><label>تلفن تماس</label><input type="tel" id="set-phone" /></div>
+          <div class="field-group"><label>آیدی اینستاگرام/تلگرام</label><input type="text" id="set-social" /></div>
+        </div>
+        <div class="field-group"><label>آدرس</label><input type="text" id="set-address" /></div>
+        <div class="grid-2">
+          <div class="field-group"><label>کد اقتصادی فروشنده</label><input type="text" id="set-econ" /></div>
+          <div class="field-group"><label>شناسه ملی</label><input type="text" id="set-nat" /></div>
+        </div>
+        <div class="grid-2">
+          <div class="field-group"><label>شماره کارت بانکی</label><input type="text" id="set-card" /></div>
+          <div class="field-group"><label>صاحب حساب</label><input type="text" id="set-owner" /></div>
+        </div>
+        <div class="grid-2">
+          <div class="field-group"><label>پیشوند فاکتور</label><input type="text" id="set-prefix" /></div>
+          <div class="field-group"><label>اندازه فونت</label>
+            <select id="set-fontsize" onchange="applyFontSize(this.value)">
+              <option value="13">کوچک (13)</option>
+              <option value="14">معمولی (14)</option>
+              <option value="15">متوسط (15)</option>
+              <option value="16">بزرگ (16)</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group">
+          <label>لوگوی فاکتور</label>
+          <div class="row-flex">
+            <img id="set-logo-img" style="width:52px;height:52px;border-radius:8px;border:1px dashed var(--border-strong);object-fit:contain;display:none;" />
+            <input type="file" id="set-logo-file" accept="image/*" style="display:none;" onchange="handleLogoUpload(event)" />
+            <button class="btn btn-sm btn-secondary" onclick="document.getElementById('set-logo-file').click()">انتخاب لوگو</button>
+            <button class="btn btn-sm btn-danger" onclick="clearBrandLogo()">حذف لوگو</button>
+          </div>
+        </div>
+        <div class="field-group"><label>متن پیش‌فرض پایین فاکتور</label><textarea id="set-footer"></textarea></div>
+        <button class="btn btn-primary btn-block" onclick="saveBrandSettings()">💾 ذخیره تنظیمات برند</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span>🏭 افزودن انبار جدید</span></div>
+        <div class="row-nowrap">
+          <input type="text" id="set-new-wh" class="flex-1" placeholder="مثلاً: انبار شعبه ۲" />
+          <button class="btn btn-secondary" onclick="addNewWarehouse()">+ افزودن</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="set-tab-security" style="display:none;">
+      <div class="card">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:10px;">
+          <input type="checkbox" id="set-login-lock" style="width:22px;height:22px;" onchange="toggleLoginLock(this.checked)" />
+          فعال‌سازی قفل ورود با رمز عبور (پیش‌فرض: admin / 1234)
+        </label>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>👤 تعریف / ویرایش کاربر</span></div>
+        <div class="grid-2">
+          <div class="field-group"><label>نام کاربری</label><input type="text" id="u-user" placeholder="مثلاً ali" /></div>
+          <div class="field-group"><label>نام کامل</label><input type="text" id="u-name" /></div>
+          <div class="field-group"><label>رمز عبور</label><input type="password" id="u-pass" placeholder="رمز جدید" /></div>
+          <div class="field-group"><label>نقش</label>
+            <select id="u-role">
+              <option value="مدیر">مدیر</option>
+              <option value="فروشنده">فروشنده</option>
+              <option value="انباردار">انباردار</option>
+              <option value="حسابدار">حسابدار</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-group"><label>سقف تخفیف مجاز (%)</label><input type="number" id="u-disc" value="10" /></div>
+        <button class="btn btn-primary btn-block" onclick="saveAppUser()">ذخیره کاربر</button>
+      </div>
+      <div id="users-list"></div>
+    </div>
+
+    <div id="set-tab-backup" style="display:none;">
+      <div class="card">
+        <div class="card-title"><span>💾 پشتیبان‌گیری و اکسل</span></div>
+        <div class="row-flex">
+          <button class="btn btn-primary flex-1" onclick="downloadBackupJson()">⬇️ دانلود بکاپ کامل (JSON)</button>
+          <input type="file" id="restore-json-file" accept=".json" style="display:none;" onchange="handleRestoreBackup(event)" />
+          <button class="btn btn-warn flex-1" onclick="document.getElementById('restore-json-file').click()">♻️ بازیابی بکاپ</button>
+        </div>
+        <div class="row-flex" style="margin-top:8px;">
+          <button class="btn btn-secondary flex-1" onclick="exportOrdersCsv()">📊 اکسل سفارش‌ها</button>
+          <button class="btn btn-secondary flex-1" onclick="exportProductsCsv()">📊 اکسل کالاها</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span>📜 لاگ فعالیت‌های سیستم</span></div>
+        <div id="audit-logs-list"></div>
+      </div>
+    </div>
+  </section>
+
+
+    <div id="set-tab-cloud" style="display:none;">
+      <div class="card">
+        <div class="card-title"><span>☁️ اتصال به سرور مرکزی و کارکرد آنلاین</span></div>
+        <p style="font-size:12px;color:var(--muted);margin-top:0;line-height:1.7;">
+          آدرس سرور مرکزی و کلید امنیتی را وارد کنید تا سفارش‌ها، انبار، فاکتورها و مشتریان بین گوشی و کامپیوتر ویندوز به‌صورت خودکار همگام شوند.
+        </p>
+        <div class="field-group"><label>آدرس سرور (URL)</label><input type="text" id="cloud-url" placeholder="https://app.yourdomain.ir یا http://192.168.1.10:8000" /></div>
+        <div class="grid-2">
+          <div class="field-group"><label>کلید امنیتی (API Token)</label><input type="password" id="cloud-token" value="MSP-2026-SYNC" /></div>
+          <div class="field-group"><label>بازه همگام‌سازی خودکار</label>
+            <select id="cloud-interval">
+              <option value="15">هر ۱۵ ثانیه</option>
+              <option value="20" selected>هر ۲۰ ثانیه</option>
+              <option value="30">هر ۳۰ ثانیه</option>
+              <option value="60">هر ۶۰ ثانیه</option>
+            </select>
+          </div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:10px;font-size:13px;">
+          <input type="checkbox" id="cloud-auto" checked style="width:20px;height:20px;" />
+          همگام‌سازی خودکار در پس‌زمینه (و هنگام بازگشت اینترنت)
+        </label>
+        <div id="cloud-meta-info" style="font-size:11.5px;color:var(--muted);margin-bottom:10px;"></div>
+        <div class="row-flex">
+          <button class="btn btn-primary flex-1" onclick="saveCloudConfig()">💾 ذخیره تنظیمات</button>
+          <button class="btn btn-secondary flex-1" onclick="testCloudServer()">🔌 تست اتصال</button>
+        </div>
+        <div class="row-flex" style="margin-top:8px;">
+          <button class="btn btn-success flex-1" onclick="triggerCloudSync(false, true)">🔄 همگام‌سازی فوری</button>
+          <button class="btn btn-warn flex-1" onclick="triggerCloudSync(true, true)">📤 ارسال کامل داده‌ها</button>
+        </div>
+        <div id="cloud-status-msg" style="margin-top:10px;font-size:12.5px;font-weight:700;"></div>
+      </div>
+    </div>
+
+  <!-- دکمه شناور ثبت سفارش سریع -->
+  <button id="fab-new-order" class="fab" onclick="openOrderModal()">+ سفارش جدید</button>
+
+  <!-- منوی ثابت پایین صفحه (۵ بخش اصلی) -->
+  <nav class="bottom-nav">
+    <button class="bnav-btn active" data-page="dashboard" onclick="goPage('dashboard')"><span class="ico">📊</span><span>داشبورد</span></button>
+    <button class="bnav-btn" data-page="orders" onclick="goPage('orders')"><span class="ico">📦</span><span>سفارش‌ها</span></button>
+    <button class="bnav-btn" data-page="inventory" onclick="goPage('inventory')"><span class="ico">🏷️</span><span>انبار</span></button>
+    <button class="bnav-btn" data-page="invoices" onclick="goPage('invoices')"><span class="ico">🧾</span><span>فاکتور</span></button>
+    <button class="bnav-btn" data-page="finance" onclick="goPage('finance')"><span class="ico">💳</span><span>مالی</span></button>
+  </nav>
+
+  <!-- مودال عمومی پویا -->
+  <div id="modal-backdrop" class="modal-backdrop">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h2 id="modal-title">عنوان</h2>
+        <button class="icon-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-foot" class="modal-foot"></div>
+    </div>
+  </div>
+
+  <!-- ناحیه مخفی چاپ A4 و Toast -->
+  <div id="print-area" style="display:none;"></div>
+  <div id="toast" class="toast"></div>
+
+  <script src="jalali.js"></script>
+  <script src="store.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
